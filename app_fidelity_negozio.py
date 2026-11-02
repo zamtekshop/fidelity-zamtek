@@ -63,8 +63,9 @@ df = controllo_cambio_mese_automatico(df)
 if os.path.exists(LOGO_FILE):
     st.image(LOGO_FILE, use_container_width=True)
 
-st.markdown("<h1 style='text-align: center;'>🏆 ZAMTEK SHOP Fidelity</h1>", unsafe_check_allowed=True)
-st.markdown("<p style='text-align: center; color: gray;'>Accedi per verificare il tuo livello personale</p>", unsafe_check_allowed=True)
+st.markdown("<h1 style='text-align: center;'>🏆 ZAMTEK SHOP Fidelity</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; color: gray;'>Accedi per verificare il tuo livello personale</p>", unsafe_allow_html=True)
+
 
 st.markdown("---")
 
