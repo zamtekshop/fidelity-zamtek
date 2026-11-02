@@ -17,13 +17,11 @@ def ottieni_date_validita():
     anno_corrente = ora.year
     mese_corrente = ora.month
     
-    # Mese corrente (Utilizzo Sconti)
     ultimo_giorno = calendar.monthrange(anno_corrente, mese_corrente)[1]
     data_inizio_attivita = f"01/{mese_corrente:02d}/{anno_corrente}"
     data_fine_attivita = f"{ultimo_giorno:02d}/{mese_corrente:02d}/{anno_corrente}"
     nome_mese_corrente = calendar.month_name[mese_corrente].capitalize()
     
-    # Mese successivo (Accumulo Timbri)
     if mese_corrente == 12:
         mese_succ = 1
         anno_succ = anno_corrente + 1
@@ -42,7 +40,7 @@ except:
     try:
         locale.setlocale(locale.LC_TIME, "it_IT")
     except:
-        pass # Fallback se il sistema non ha la lingua installata
+        pass
 
 data_inizio, data_fine, mese_attuale_nome, mese_prossimo_nome = ottieni_date_validita()
 
@@ -111,14 +109,13 @@ if login_id and login_pass:
     utente_filtrato = df[df['Email_ID'].str.lower() == login_id.lower()]
     
     if not utente_filtrato.empty:
-        idx_cliente = utente_filtrato.index
+        idx_cliente = utente_filtrato.index[0]
         password_corretta = str(df.at[idx_cliente, 'Password_Utente'])
         
         if login_pass == password_corretta:
             st.success(f"🔓 Accesso effettuato! Benvenuto, {df.at[idx_cliente, 'Nome']} {df.at[idx_cliente, 'Cognome']}")
             st.markdown("---")
             
-            # RESOCONTO DETTAGLIATO PER IL CLIENTE
             st.markdown("### 📊 Il tuo Riepilogo Fidelity")
             st.info(f"""
             * **Il tuo Livello Attuale:** {df.at[idx_cliente, 'Livello_Attuale']}
@@ -127,7 +124,6 @@ if login_id and login_pass:
             * **Obiettivo:** I timbri che raccogli ora determineranno lo sconto per il mese di **{mese_prossimo_nome}**.
             """)
             
-            # VISUALIZZAZIONE SCONTI DISPONIBILI
             st.markdown("#### 🛍️ Gli sconti a tua disposizione OGGI alla cassa:")
             livello = df.at[idx_cliente, 'Livello_Attuale']
             if livello == "🥈 CHALLENGER":
@@ -148,7 +144,6 @@ if login_id and login_pass:
             else:
                 st.error("❌ **NESSUN LIVELLO ATTIVO QUESTO MESE:** Paghi il prezzo pieno su tutti i prodotti. Partecipa ai tornei serali o effettua acquisti per sbloccare i tuoi sconti per il mese prossimo!")
                 
-            # BARRA DI AVANZAMENTO GRAFICA
             st.markdown(f"#### 🪙 Il tuo percorso accumulo nel mese di {mese_attuale_nome}:")
             timbri_attuali = int(df.at[idx_cliente, 'Timbri_Mese'])
             
@@ -171,7 +166,7 @@ if login_id and login_pass:
     else:
         st.error("❌ ID o Email non trovato nel sistema.")
 
-# AREA RISERVATA ALLA CASSA (COMPRESA LA TABELLA DETTAGLIATA CON TUTTE LE INFO)
+# AREA RISERVATA ALLA CASSA
 st.markdown("---")
 with st.expander("🔒 Area Riservata Staff Zamtek (Pannello di Controllo & Registro Completo)"):
     pass_inserita = st.text_input("Inserisci la Password di Cassa:", type="password", key="pass_staff")
@@ -184,7 +179,7 @@ with st.expander("🔒 Area Riservata Staff Zamtek (Pannello di Controllo & Regi
             if not df.empty:
                 df['Nome_Completo'] = df['Nome'] + " " + df['Cognome'] + " (" + df['Email_ID'] + ")"
                 scelta_cassa = st.selectbox("Seleziona il giocatore al bancone:", df['Nome_Completo'].values, key="cassa_select")
-                idx_cassa = df[df['Nome_Completo'] == scelta_cassa].index
+                idx_cassa = df[df['Nome_Completo'] == scelta_cassa].index[0]
                 
                 st.write(f"ℹ️ **Stato attuale cliente:** Livello di questo mese: `{df.at[idx_cassa, 'Livello_Attuale']}` | Timbri correnti raccolti: `{df.at[idx_cassa, 'Timbri_Mese']}`")
                 
@@ -202,3 +197,8 @@ with st.expander("🔒 Area Riservata Staff Zamtek (Pannello di Controllo & Regi
                         df.at[idx_cassa, 'Ultimo_Aggiornamento_Mese'] = datetime.now().strftime("%Y-%m")
                         salva_db(df.drop(columns=['Nome_Completo'], errors='ignore'))
                         st.toast("+1 Timbro Spesa assegnato!")
+                        st.rerun()
+                with c3:
+                    if st.button("📦 +4 Acquisto Box Display"):
+                        df.at[idx_cassa, 'Timbri_Mese'] += 4
+                        df.at[idx_cassa, 'Ultimo_Aggiornamento_Mese'] = datetime.now().strftime("%Y-%m")
