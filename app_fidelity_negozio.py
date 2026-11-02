@@ -8,6 +8,7 @@ import calendar
 st.set_page_config(page_title="ZAMTEK SHOP - Fidelity", layout="centered")
 
 DB_FILE = "fidelity_database.csv"
+LOG_FILE = "fidelity_cronologia.csv"
 LOGO_FILE = "logo.png"
 PASSWORD_CASSA = "zamtek2026"  # Password segreta per te alla cassa
 
@@ -17,7 +18,7 @@ def ottieni_date_validita():
     anno_corrente = ora.year
     mese_corrente = ora.month
     
-    ultimo_giorno = calendar.monthrange(anno_corrente, mese_corrente)[1]
+    ultimo_giorno = calendar.monthrange(anno_corrente, mese_corrente)
     data_inizio_attivita = f"01/{mese_corrente:02d}/{anno_corrente}"
     data_fine_attivita = f"{ultimo_giorno:02d}/{mese_corrente:02d}/{anno_corrente}"
     nome_mese_corrente = calendar.month_name[mese_corrente].capitalize()
@@ -62,6 +63,22 @@ def descrivi_sconto(livello):
     else:
         return "Prezzo pieno su tutto"
 
+# Funzione per registrare un evento nella cronologia
+def scrivi_log(giocatore, operazione, timbri_variati):
+    timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    nuovo_log = {
+        "Data/Ora": timestamp,
+        "Giocatore": giocatore,
+        "Operazione": operazione,
+        "Variazione Timbri": timbri_variati
+    }
+    if os.path.exists(LOG_FILE):
+        log_df = pd.read_csv(LOG_FILE)
+        log_df = pd.concat([pd.DataFrame([nuovo_log]), log_df], ignore_index=True)
+    else:
+        log_df = pd.DataFrame([nuovo_log])
+    log_df.to_csv(LOG_FILE, index=False)
+
 # Funzione per caricare il database
 def carica_db():
     if os.path.exists(DB_FILE):
@@ -91,10 +108,17 @@ def controllo_cambio_mese_automatico(df):
     for idx, row in df.iterrows():
         if str(row['Ultimo_Aggiornamento_Mese']) != mese_corrente:
             timbri = row['Timbri_Mese']
-            df.at[idx, 'Livello_Attuale'] = calcola_livello_futuro(timbri)
+            vecchio_livello = row['Livello_Attuale']
+            nuovo_livello = calcola_livello_futuro(timbri)
+            
+            df.at[idx, 'Livello_Attuale'] = nuovo_livello
             df.at[idx, 'Timbri_Mese'] = 0  
             df.at[idx, 'Ultimo_Aggiornamento_Mese'] = mese_corrente
             modificato = True
+            
+            # Registra il reset automatico nel log
+            scrivi_log(f"{row['Nome']} {row['Cognome']}", f"Reset Mensile Autom. (Nuovo Livello: {nuovo_livello} basato su {timbri} timbri)", 0)
+            
     if modificato:
         salva_db(df)
     return df
@@ -107,8 +131,8 @@ df = controllo_cambio_mese_automatico(df)
 if os.path.exists(LOGO_FILE):
     st.image(LOGO_FILE, use_container_width=True)
 
-st.markdown("<h1 style='text-align: center;'>🏆 ZAMTEK SHOP Fidelity</h1>", unsafe_allow_html=True)
-st.markdown(f"<p style='text-align: center; color: gray;'>Resoconto Digitale Personale Giocatori • Aggiornato in Tempo Reale</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>🏆 card</h1>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: gray;'>Resoconto Digitale Personale Giocatori • ZAMTEK SHOP</p>", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -121,14 +145,14 @@ if login_id and login_pass:
     utente_filtrato = df[df['Email_ID'].str.lower() == login_id.lower()]
     
     if not utente_filtrato.empty:
-        idx_cliente = utente_filtrato.index[0]
+        idx_cliente = utente_filtrato.index
         password_corretta = str(df.at[idx_cliente, 'Password_Utente'])
         
         if login_pass == password_corretta:
             st.success(f"🔓 Accesso effettuato! Benvenuto nella tua Area Personale, {df.at[idx_cliente, 'Nome']}!")
             st.markdown("---")
             
-            # 1. RICEVUTA PRESTAZIONI "SCONTRINO STYLE"
+            # RICEVUTA PRESTAZIONI "SCONTRINO STYLE"
             st.markdown("### 📋 Il Tuo Profilo Personalizzato")
             livello_attuale = df.at[idx_cliente, 'Livello_Attuale']
             timbri_attuali = int(df.at[idx_cliente, 'Timbri_Mese'])
@@ -151,10 +175,10 @@ if login_id and login_pass:
 ==================================================
             """, language="text")
             
-            # 2. TABELLA RIASSUNTIVA SCONTI DEL GIORNO
-            st.markdown("#### 🛍️ Tabella Sconti Disponibili Oggi per Te")
+            # 1. TABELLA RIASSUNTIVA SCONTI DI QUESTO MESE
+            st.markdown(f"#### 🛍️ Tabella Sconti Disponibili Oggi per Te ({mese_attuale_nome})")
             
-            dati_sconto_tabella = {
+            dati_sconto_oggi = {
                 "Categoria Prodotto": ["Carte Singole ≤ 30€", "Carte Singole > 30€", "Sealed Definiti (Bustine/Mazzi)"],
                 "Il tuo Sconto Attivo": [
                     "7% di Sconto" if livello_attuale == "🥇 CHAMPION" else ("5% di Sconto" if livello_attuale == "🥈 CHALLENGER" else "Prezzo Pieno"),
@@ -162,13 +186,26 @@ if login_id and login_pass:
                     "5% di Sconto" if livello_attuale == "🥇 CHAMPION" else "Prezzo Pieno"
                 ]
             }
-            st.table(pd.DataFrame(dati_sconto_tabella))
+            st.table(pd.DataFrame(dati_sconto_oggi))
+            
+            # 2. TABELLA RIASSUNTIVA SCONTI DEL MESE PROSSIMO
+            st.markdown(f"#### 🚀 Tabella Sconti Disponibili Prossimo Mese ({mese_prossimo_nome})")
+            st.caption(f"In base ai `{timbri_attuali}` timbri accumulati oggi, nel mese di {mese_prossimo_nome} avrai diritto a:")
+            
+            dati_sconto_prossimo = {
+                "Categoria Prodotto": ["Carte Singole ≤ 30€", "Carte Singole > 30€", "Sealed Definiti (Bustine/Mazzi)"],
+                "Sconto Futuro Garantito": [
+                    "7% di Sconto" if livello_futuro == "🥇 CHAMPION" else ("5% di Sconto" if livello_futuro == "🥈 CHALLENGER" else "Prezzo Pieno"),
+                    "5% di Sconto" if livello_futuro in ["🥇 CHAMPION", "🥈 CHALLENGER"] else "Prezzo Pieno",
+                    "5% di Sconto" if livello_futuro == "🥇 CHAMPION" else "Prezzo Pieno"
+                ]
+            }
+            st.table(pd.DataFrame(dati_sconto_prossimo))
             st.caption("⚠️ Gli sconti si applicano sul totale degli acquisti effettuati nella singola giornata. Esclusi Box display interi e preordini.")
             
-            # 3. GRAFICO VISIVO DI PROGRESSIONE VERSO IL MESE SUCCESSIVO
+            # GRAFICO VISIVO DI PROGRESSIONE VERSO IL MESE SUCCESSIVO
             st.markdown(f"#### 🪙 Grafico Avanzamento Livello per {mese_prossimo_nome}")
             
-            # Creazione di un grafico a barre orizzontali pulito
             dati_grafico = pd.DataFrame({
                 'Traguardi': ['Livello Challenger', 'Livello Champion', 'I Tuoi Timbri'],
                 'Timbri': [5, 10, timbri_attuali]
@@ -176,8 +213,10 @@ if login_id and login_pass:
             st.bar_chart(data=dati_grafico, x='Traguardi', y='Timbri', horizontal=True, color=["#ff4b4b"])
             
             if timbri_attuali < 5:
+                mancanti_challenger = 5 - timbri_attuali
                 st.warning(f"💡 Ti mancano ancora **{5 - timbri_attuali} timbri** entro fine mese per sbloccare il livello **Challenger** a {mese_prossimo_nome}!")
             elif timbri_attuali < 10:
+                mancanti_champion = 10 - timbri_attuali
                 st.info(f"🚀 Livello Challenger sicuro! Ti mancano **{10 - timbri_attuali} timbri** entro fine mese per fare l'upgrade a **Champion**!")
             else:
                 st.success(f"🥇 Massimo Livello Raggiunto! Sei un Champion confermato anche per il mese di {mese_prossimo_nome}!")
@@ -187,33 +226,3 @@ if login_id and login_pass:
     else:
         st.error("❌ ID o Email non trovato nel sistema.")
 
-# AREA RISERVATA ALLA CASSA
-st.markdown("---")
-with st.expander("🔒 Area Riservata Staff Zamtek (Pannello di Controllo & Registro Completo)"):
-    pass_inserita = st.text_input("Inserisci la Password di Cassa:", type="password", key="pass_staff")
-    
-    if pass_inserita == PASSWORD_CASSA:
-        st.success("🔓 Accesso Amministratore Concesso")
-        tab1, tab2, tab3 = st.tabs(["⚙️ Assegna Timbri Giocatore", "📊 Tabellone Generale Sconti", "👤 Registra Nuovo Giocatore"])
-        
-        with tab1:
-            if not df.empty:
-                df['Nome_Completo'] = df['Nome'] + " " + df['Cognome'] + " (" + df['Email_ID'] + ")"
-                scelta_cassa = st.selectbox("Seleziona il giocatore al bancone:", df['Nome_Completo'].values, key="cassa_select")
-                idx_cassa = df[df['Nome_Completo'] == scelta_cassa].index[0]
-                
-                st.write(f"ℹ️ **Stato attuale cliente:** Livello di questo mese: `{df.at[idx_cassa, 'Livello_Attuale']}` | Timbri correnti raccolti: `{df.at[idx_cassa, 'Timbri_Mese']}`")
-                
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    if st.button("🕹️ +1 Torneo Serale"):
-                        df.at[idx_cassa, 'Timbri_Mese'] += 1
-                        df.at[idx_cassa, 'Ultimo_Aggiornamento_Mese'] = datetime.now().strftime("%Y-%m")
-                        salva_db(df.drop(columns=['Nome_Completo'], errors='ignore'))
-                        st.toast("+1 Timbro Torneo assegnato!")
-                        st.rerun()
-                with c2:
-                    if st.button("🛍️ +1 Spesa ≥ 50€ Netta"):
-                        df.at[idx_cassa, 'Timbri_Mese'] += 1
-                        df.at[idx_cassa, 'Ultimo_Aggiornamento_Mese'] = datetime.now().strftime("%Y-%m")
-                        salva_db(df.drop(columns=['Nome_Completo'], errors='ignore'))
