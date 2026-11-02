@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 import calendar
 
-# Configurazione della pagina ottimizzata per Mobile
+# Configurazione della pagina ottimizzata per Mobile e Desktop
 st.set_page_config(page_title="ZAMTEK SHOP - Fidelity", layout="centered")
 
 DB_FILE = "fidelity_database.csv"
@@ -44,6 +44,24 @@ except:
 
 data_inizio, data_fine, mese_attuale_nome, mese_prossimo_nome = ottieni_date_validita()
 
+# Funzione per calcolare il livello futuro in base ai timbri attuali
+def calcola_livello_futuro(timbri):
+    if timbri >= 10:
+        return "🥇 CHAMPION"
+    elif timbri >= 5:
+        return "🥈 CHALLENGER"
+    else:
+        return "🥉 Nessun Livello"
+
+# Funzione per mappare gli sconti descrittivi
+def descrivi_sconto(livello):
+    if livello == "🥇 CHAMPION":
+        return "7% Singole ≤30€ | 5% Singole >30€ | 5% Sealed (Bustine/Mazzi)"
+    elif livello == "🥈 CHALLENGER":
+        return "5% su Tutte le Carte Singole | No Sealed"
+    else:
+        return "Prezzo pieno su tutto"
+
 # Funzione per caricare il database
 def carica_db():
     if os.path.exists(DB_FILE):
@@ -73,13 +91,7 @@ def controllo_cambio_mese_automatico(df):
     for idx, row in df.iterrows():
         if str(row['Ultimo_Aggiornamento_Mese']) != mese_corrente:
             timbri = row['Timbri_Mese']
-            if timbri >= 10:
-                nuovo_livello = "🥇 CHAMPION"
-            elif timbri >= 5:
-                nuovo_livello = "🥈 CHALLENGER"
-            else:
-                nuovo_livello = "🥉 Nessun Livello"
-            df.at[idx, 'Livello_Attuale'] = nuovo_livello
+            df.at[idx, 'Livello_Attuale'] = calcola_livello_futuro(timbri)
             df.at[idx, 'Timbri_Mese'] = 0  
             df.at[idx, 'Ultimo_Aggiornamento_Mese'] = mese_corrente
             modificato = True
@@ -96,7 +108,7 @@ if os.path.exists(LOGO_FILE):
     st.image(LOGO_FILE, use_container_width=True)
 
 st.markdown("<h1 style='text-align: center;'>🏆 ZAMTEK SHOP Fidelity</h1>", unsafe_allow_html=True)
-st.markdown(f"<p style='text-align: center; color: gray;'>Periodo di Validità Sconti Attuali: <b>{data_inizio}</b> fino al <b>{data_fine}</b></p>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: gray;'>Resoconto Digitale Personale Giocatori • Aggiornato in Tempo Reale</p>", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -113,54 +125,63 @@ if login_id and login_pass:
         password_corretta = str(df.at[idx_cliente, 'Password_Utente'])
         
         if login_pass == password_corretta:
-            st.success(f"🔓 Accesso effettuato! Benvenuto, {df.at[idx_cliente, 'Nome']} {df.at[idx_cliente, 'Cognome']}")
+            st.success(f"🔓 Accesso effettuato! Benvenuto nella tua Area Personale, {df.at[idx_cliente, 'Nome']}!")
             st.markdown("---")
             
-            st.markdown("### 📊 Il tuo Riepilogo Fidelity")
-            st.info(f"""
-            * **Il tuo Livello Attuale:** {df.at[idx_cliente, 'Livello_Attuale']}
-            * **Periodo utilizzo sconti:** Valido dal **{data_inizio}** al **{data_fine}** (Mese di {mese_attuale_nome})
-            * **Timbri accumulati in questo mese:** `{df.at[idx_cliente, 'Timbri_Mese']}` timbri inseriti.
-            * **Obiettivo:** I timbri che raccogli ora determineranno lo sconto per il mese di **{mese_prossimo_nome}**.
-            """)
-            
-            st.markdown("#### 🛍️ Gli sconti a tua disposizione OGGI alla cassa:")
-            livello = df.at[idx_cliente, 'Livello_Attuale']
-            if livello == "🥈 CHALLENGER":
-                st.warning(f"""
-                **🥈 AGEVOLAZIONI LIVELLO CHALLENGER (Valido oggi per scontrino unico giornaliero):**
-                * 🔮 **Carte Singole:** **5% di SCONTO** su tutte le carte (sia sotto che sopra i 30€).
-                * 📦 **Prodotti Sealed (Sigillati):** Prezzo pieno (Nessuno sconto).
-                * *Esclusioni:* Box Display interi, Iscrizioni tornei, Preordini, Accessori.
-                """)
-            elif livello == "🥇 CHAMPION":
-                st.success(f"""
-                **🥇 AGEVOLAZIONI LIVELLO CHAMPION (Valido oggi per scontrino unico giornaliero):**
-                * 🔮 **Carte Singole FINO a 30€:** **7% di SCONTO**
-                * 💎 **Carte Singole OLTRE i 30€:** **5% di SCONTO**
-                * 📦 **Prodotti Sealed Selezionati:** **5% di SCONTO** applicabile esclusivamente su: *Bustine sfuse, Mazzi Commander, Mazzi Starter e Bundle*.
-                * *Esclusioni:* Box Display interi (sigillati), Iscrizioni tornei, Preordini, Accessori.
-                """)
-            else:
-                st.error("❌ **NESSUN LIVELLO ATTIVO QUESTO MESE:** Paghi il prezzo pieno su tutti i prodotti. Partecipa ai tornei serali o effettua acquisti per sbloccare i tuoi sconti per il mese prossimo!")
-                
-            st.markdown(f"#### 🪙 Il tuo percorso accumulo nel mese di {mese_attuale_nome}:")
+            # 1. RICEVUTA PRESTAZIONI "SCONTRINO STYLE"
+            st.markdown("### 📋 Il Tuo Profilo Personalizzato")
+            livello_attuale = df.at[idx_cliente, 'Livello_Attuale']
             timbri_attuali = int(df.at[idx_cliente, 'Timbri_Mese'])
+            livello_futuro = calcola_livello_futuro(timbri_attuali)
+            
+            st.code(f"""
+==================================================
+              ZAMTEK SHOP FIDELITY               
+==================================================
+ GIOCATORE:      {df.at[idx_cliente, 'Nome'].upper()} {df.at[idx_cliente, 'Cognome'].upper()}
+ ID ACCOUNT:     {df.at[idx_cliente, 'Email_ID']}
+--------------------------------------------------
+ STATO ATTUALE ({mese_attuale_nome.upper()}):
+ 🔹 Livello Attivo:      {livello_attuale}
+ 🔹 Validità Sconti:     dal {data_inizio} al {data_fine}
+--------------------------------------------------
+ ANDAMENTO RACCOLTA ATTUALE:
+ 🔹 Timbri Accumulati:   {timbri_attuali} Timbri
+ 🚀 STATO MESE PROSSIMO ({mese_prossimo_nome.upper()}): {livello_futuro}
+==================================================
+            """, language="text")
+            
+            # 2. TABELLA RIASSUNTIVA SCONTI DEL GIORNO
+            st.markdown("#### 🛍️ Tabella Sconti Disponibili Oggi per Te")
+            
+            dati_sconto_tabella = {
+                "Categoria Prodotto": ["Carte Singole ≤ 30€", "Carte Singole > 30€", "Sealed Definiti (Bustine/Mazzi)"],
+                "Il tuo Sconto Attivo": [
+                    "7% di Sconto" if livello_attuale == "🥇 CHAMPION" else ("5% di Sconto" if livello_attuale == "🥈 CHALLENGER" else "Prezzo Pieno"),
+                    "5% di Sconto" if livello_attuale in ["🥇 CHAMPION", "🥈 CHALLENGER"] else "Prezzo Pieno",
+                    "5% di Sconto" if livello_attuale == "🥇 CHAMPION" else "Prezzo Pieno"
+                ]
+            }
+            st.table(pd.DataFrame(dati_sconto_tabella))
+            st.caption("⚠️ Gli sconti si applicano sul totale degli acquisti effettuati nella singola giornata. Esclusi Box display interi e preordini.")
+            
+            # 3. GRAFICO VISIVO DI PROGRESSIONE VERSO IL MESE SUCCESSIVO
+            st.markdown(f"#### 🪙 Grafico Avanzamento Livello per {mese_prossimo_nome}")
+            
+            # Creazione di un grafico a barre orizzontali pulito
+            dati_grafico = pd.DataFrame({
+                'Traguardi': ['Livello Challenger', 'Livello Champion', 'I Tuoi Timbri'],
+                'Timbri': [5, 10, timbri_attuali]
+            })
+            st.bar_chart(data=dati_grafico, x='Traguardi', y='Timbri', horizontal=True, color=["#ff4b4b"])
             
             if timbri_attuali < 5:
-                mancanti_challenger = 5 - timbri_attuali
-                st.write(f"🔹 Progressi per livello **Challenger**: `{timbri_attuali} / 5` timbri.")
-                st.progress(timbri_attuali / 5)
-                st.write(f"💡 *Raggiungi quota 5 timbri entro il {data_fine} per sbloccare il 5% sulle singole a {mese_prossimo_nome}!*")
+                st.warning(f"💡 Ti mancano ancora **{5 - timbri_attuali} timbri** entro fine mese per sbloccare il livello **Challenger** a {mese_prossimo_nome}!")
             elif timbri_attuali < 10:
-                mancanti_champion = 10 - timbri_attuali
-                st.write(f"🥈 **Sei Challenger!** Progressi verso il livello **Champion**: `{timbri_attuali} / 10` timbri.")
-                progresso_relativo = (timbri_attuali - 5) / 5
-                st.progress(progresso_relativo)
-                st.write(f"🚀 *Raggiungi quota 10 timbri entro il {data_fine} per fare il grande salto a Champion (Sconti su Singole + Sealed) a {mese_prossimo_nome}!*")
+                st.info(f"🚀 Livello Challenger sicuro! Ti mancano **{10 - timbri_attuali} timbri** entro fine mese per fare l'upgrade a **Champion**!")
             else:
-                st.write(f"🥇 **Grandioso! Livello Champion già confermato e bloccato per il mese di {mese_prossimo_nome}!**")
-                st.progress(1.0)
+                st.success(f"🥇 Massimo Livello Raggiunto! Sei un Champion confermato anche per il mese di {mese_prossimo_nome}!")
+                
         else:
             st.error("❌ Password errata per questo ID.")
     else:
@@ -196,9 +217,3 @@ with st.expander("🔒 Area Riservata Staff Zamtek (Pannello di Controllo & Regi
                         df.at[idx_cassa, 'Timbri_Mese'] += 1
                         df.at[idx_cassa, 'Ultimo_Aggiornamento_Mese'] = datetime.now().strftime("%Y-%m")
                         salva_db(df.drop(columns=['Nome_Completo'], errors='ignore'))
-                        st.toast("+1 Timbro Spesa assegnato!")
-                        st.rerun()
-                with c3:
-                    if st.button("📦 +4 Acquisto Box Display"):
-                        df.at[idx_cassa, 'Timbri_Mese'] += 4
-                        df.at[idx_cassa, 'Ultimo_Aggiornamento_Mese'] = datetime.now().strftime("%Y-%m")
